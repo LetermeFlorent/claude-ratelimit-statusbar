@@ -1,0 +1,41 @@
+{
+  "name": "claude-ratelimit-statusbar",
+  "displayName": "Claude Rate Limit Status Bar",
+  "description": "Affiche les limites d'usage Claude (fenetres 5h et 7 jours) avec une vraie barre de progression coloree dans la status bar.",
+  "version": "0.1.0",
+  "publisher": "letermeflorent",
+  "license": "MIT",
+  "icon": "icon.png",
+  "repository": { "type": "git", "url": "https://github.com/LetermeFlorent/claude-ratelimit-statusbar.git" },
+  "homepage": "https://github.com/LetermeFlorent/claude-ratelimit-statusbar#readme",
+  "bugs": { "url": "https://github.com/LetermeFlorent/claude-ratelimit-statusbar/issues" },
+  "keywords": ["claude", "anthropic", "rate limit", "usage", "status bar"],
+  "engines": { "vscode": "^1.75.0" },
+  "categories": ["Other"],
+  "activationEvents": ["onStartupFinished"],
+  "main": "./extension.js",
+  "contributes": {
+    "commands": [
+      { "command": "claudeRate.refresh", "title": "Claude Rate: Rafraichir" }
+    ],
+    "icons": {
+      "cs-bar-full": {
+        "description": "Barre pleine (JetBrains Mono CS)",
+        "default": { "fontPath": "./bar.woff", "fontCharacter": "\\E000" }
+      },
+      "cs-bar-empty": {
+        "description": "Barre vide (JetBrains Mono CS)",
+        "default": { "fontPath": "./bar.woff", "fontCharacter": "\\E001" }
+      }
+    },
+    "configuration": {
+      "title": "Claude Rate Limit",
+      "properties": {
+        "claudeRate.refreshSeconds": { "type": "number", "default": 5, "description": "Intervalle de rafraichissement (secondes)." },
+        "claudeRate.staleSeconds": { "type": "number", "default": 90, "description": "Age au-dela duquel les donnees sont grisees (secondes)." },
+        "claudeRate.barWidth": { "type": "number", "default": 8, "description": "Largeur de la barre (cellules)." },
+        "claudeRate.cachePath": { "type": "string", "default": "", "description": "Chemin du cache cs-rate-cache.json (vide = %TEMP%\\cs-rate-cache.json)." }
+      }
+    }
+  }
+}
