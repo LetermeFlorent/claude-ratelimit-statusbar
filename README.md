@@ -18,7 +18,9 @@ Petite extension VS Code qui affiche tes limites d'usage **Claude** (fenetre gli
 
 ## Source des donnees
 
-L'extension lit le cache `%TEMP%\cs-rate-cache.json` ecrit par la statusline `cs` de Claude Code. Les valeurs se mettent a jour tant que Claude Code tourne.
+Source principale : l'API OAuth `https://api.anthropic.com/api/oauth/usage`, interrogee en reutilisant le token que Claude Code stocke dans `~/.claude/.credentials.json` (aucune cle API separee). Cadence douce : au plus 1 appel/min quand la fenetre est active, 1/5 min sinon, avec cool-down de 60 s sur 429. Fonctionne que tu utilises le CLI ou l'extension Claude Code de VSCode.
+
+Repli : si l'API est indisponible, l'extension lit le cache `%TEMP%\cs-rate-cache.json` de la statusline CLI.
 
 ## Installation
 

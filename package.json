@@ -1,8 +1,8 @@
 {
   "name": "claude-ratelimit-statusbar",
   "displayName": "Claude Rate Limit Status Bar",
-  "description": "Affiche les limites d'usage Claude (fenetres 5h et 7 jours) avec une vraie barre de progression coloree dans la status bar.",
-  "version": "0.1.0",
+  "description": "Affiche les limites d'usage Claude (fenetres 5h et 7 jours) avec une vraie barre de progression coloree dans la status bar. Source API /usage fiable + repli cache CLI.",
+  "version": "0.2.0",
   "publisher": "letermeflorent",
   "license": "MIT",
   "icon": "icon.png",
@@ -14,6 +14,7 @@
   "categories": ["Other"],
   "activationEvents": ["onStartupFinished"],
   "main": "./extension.js",
+  "extensionKind": ["ui"],
   "contributes": {
     "commands": [
       { "command": "claudeRate.refresh", "title": "Claude Rate: Rafraichir" }
@@ -31,9 +32,10 @@
     "configuration": {
       "title": "Claude Rate Limit",
       "properties": {
-        "claudeRate.refreshSeconds": { "type": "number", "default": 5, "description": "Intervalle de rafraichissement (secondes)." },
-        "claudeRate.staleSeconds": { "type": "number", "default": 90, "description": "Age au-dela duquel les donnees sont grisees (secondes)." },
+        "claudeRate.refreshSeconds": { "type": "number", "default": 5, "description": "Intervalle de rafraichissement de l'affichage (secondes)." },
+        "claudeRate.staleSeconds": { "type": "number", "default": 300, "description": "Age au-dela duquel les donnees sont grisees (secondes)." },
         "claudeRate.barWidth": { "type": "number", "default": 8, "description": "Largeur de la barre (cellules)." },
+        "claudeRate.apiFallback": { "type": "boolean", "default": true, "description": "Interroger l'API /usage (>=1/min max) comme source fiable ; repli sur le cache CLI si desactive." },
         "claudeRate.cachePath": { "type": "string", "default": "", "description": "Chemin du cache cs-rate-cache.json (vide = %TEMP%\\cs-rate-cache.json)." }
       }
     }
