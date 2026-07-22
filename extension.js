@@ -140,7 +140,7 @@ async function maybeFetch(force) {
 }
 
 const it = {};
-let timer;
+let timer, lastKey = '';
 
 function scheduled() {
   const ms = Math.max(2, Number(cfg().get('refreshSeconds')) || 5) * 1000;
@@ -167,7 +167,7 @@ function drawLine(lbl, barItem, valItem, label, data, w, stale) {
   seg(valItem, (data.pct + '% ' + (data.reset || '')).replace(/\s+$/, ''), undefined);
 }
 
-function setStatus(src, nextSecs) {
+function setStatus(src, next) {
   let icon = '$(sync)', color, tip = 'API: initialisation';
   if (apiStatus.state === 'ok') { icon = '$(check)'; color = '#57c85a'; tip = 'API OK'; }
   else if (apiStatus.state === 'cooldown') { icon = '$(clock)'; color = '#e59b45'; tip = 'API 429 (limite atteinte)'; }
@@ -175,11 +175,15 @@ function setStatus(src, nextSecs) {
   else if (apiStatus.state === 'http') { icon = '$(error)'; color = '#f14c4c'; tip = 'API HTTP ' + apiStatus.code; }
   else if (apiStatus.state === 'err') { icon = '$(error)'; color = '#f14c4c'; tip = 'API erreur: ' + apiStatus.msg; }
   const srcLabel = src === 'api' ? 'source: API' : (src === 'cache' ? 'source: cache CLI' : 'aucune source');
+  const when = (next > Date.now() + 2000) ? new Date(next).toLocaleTimeString() : 'imminent';
+  const key = apiStatus.state + '|' + src + '|' + when;
+  if (key === lastKey) return;
+  lastKey = key;
   const md = new vscode.MarkdownString(undefined, true);
   md.isTrusted = true;
   md.appendMarkdown('**' + tip + '**\n\n');
   md.appendMarkdown(srcLabel + '\n\n');
-  md.appendMarkdown('Prochaine actualisation dans ~' + nextSecs + 's\n\n');
+  md.appendMarkdown('Prochaine actualisation vers ' + when + '\n\n');
   md.appendMarkdown('[$(sync) Forcer l\'actualisation](command:claudeRate.refresh)');
   it.st.text = icon;
   it.st.color = color;
@@ -208,9 +212,8 @@ function render() {
   let next = Date.now();
   if (Date.now() < cooldownUntil) next = cooldownUntil;
   else if (apiSnap) next = apiSnap.ts + wanted;
-  const nextSecs = Math.max(0, Math.round((next - Date.now()) / 1000));
 
-  setStatus(src, nextSecs);
+  setStatus(src, next);
 
   const five = snap && snap.five;
   const seven = snap && snap.seven;
