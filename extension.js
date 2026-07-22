@@ -11,6 +11,7 @@ const CRED = path.join(os.homedir(), '.claude', '.credentials.json');
 const USAGE_URL = 'https://api.anthropic.com/api/oauth/usage';
 const TOKEN_URL = 'https://console.anthropic.com/v1/oauth/token';
 const API_MIN_INTERVAL = 55000;
+const API_CACHE = path.join(os.tmpdir(), 'claude-ratelimit-api-cache.json');
 
 function cfg() { return vscode.workspace.getConfiguration('claudeRate'); }
 
@@ -100,22 +101,37 @@ async function callUsage(token) {
 
 let apiSnap = null;
 let apiStatus = { state: 'init', code: 0, msg: '' };
-let cooldownUntil = 0, lastFetch = 0, fetching = false;
+let cooldownUntil = 0, lastFetch = 0, fetching = false, failStreak = 0;
+
+function writeApiCache(o) { try { fs.writeFileSync(API_CACHE, JSON.stringify(o)); } catch (_) { } }
 
 async function maybeFetch() {
   const now = Date.now();
   if (fetching || now < cooldownUntil || now - lastFetch < API_MIN_INTERVAL) return;
+  const disk = readJson(API_CACHE);
+  if (disk && disk.ts && now - disk.ts < 55000) {
+    apiSnap = { five: disk.five, seven: disk.seven, ts: disk.ts };
+    apiStatus = { state: 'ok', code: 200, msg: '' };
+    return;
+  }
+  if (disk && disk.fetchingUntil && disk.fetchingUntil > now) {
+    if (disk.ts) apiSnap = { five: disk.five, seven: disk.seven, ts: disk.ts };
+    return;
+  }
   fetching = true; lastFetch = now;
+  writeApiCache(Object.assign({}, disk || {}, { fetchingUntil: now + 8000 }));
   try {
     const tok = await getToken();
     if (!tok) { apiStatus = { state: 'nocreds', code: 0, msg: CRED }; render(); return; }
     const r = await callUsage(tok);
-    if (r.status === 429) { cooldownUntil = Date.now() + 60000; apiStatus = { state: 'cooldown', code: 429, msg: 'rate-limited 60s' }; render(); return; }
+    if (r.status === 429) { failStreak++; const back = Math.min(600000, 60000 * Math.pow(2, failStreak - 1)); cooldownUntil = Date.now() + back; apiStatus = { state: 'cooldown', code: 429, msg: 'retry ' + Math.round(back / 1000) + 's' }; render(); return; }
     if (r.status !== 200) { apiStatus = { state: 'http', code: r.status, msg: (r.body || '').slice(0, 120) }; render(); return; }
     const d = JSON.parse(r.body);
     const mk = function (x) { return x ? { pct: Math.round(x.utilization), reset: fmtDur(x.resets_at) } : null; };
+    failStreak = 0;
     apiSnap = { five: mk(d.five_hour), seven: mk(d.seven_day), ts: Date.now() };
     apiStatus = { state: 'ok', code: 200, msg: '' };
+    writeApiCache({ five: apiSnap.five, seven: apiSnap.seven, ts: apiSnap.ts, fetchingUntil: 0 });
     render();
   } catch (e) { apiStatus = { state: 'err', code: 0, msg: String((e && e.message) || e) }; render(); }
   finally { fetching = false; }
