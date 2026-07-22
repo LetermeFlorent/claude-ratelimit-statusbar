@@ -2,7 +2,7 @@
   "name": "claude-ratelimit-statusbar",
   "displayName": "Claude Rate Limit Status Bar",
   "description": "Affiche les limites d'usage Claude (fenetres 5h et 7 jours) avec une vraie barre de progression coloree dans la status bar. Source API /usage fiable + repli cache CLI.",
-  "version": "0.2.2",
+  "version": "0.2.3",
   "publisher": "letermeflorent",
   "license": "MIT",
   "icon": "icon.png",

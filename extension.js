@@ -101,21 +101,22 @@ async function callUsage(token) {
 
 let apiSnap = null;
 let apiStatus = { state: 'init', code: 0, msg: '' };
-let cooldownUntil = 0, lastFetch = 0, fetching = false, failStreak = 0;
+let cooldownUntil = 0, lastFetch = 0, fetching = false, failStreak = 0, JITTER = 0;
 
 function writeApiCache(o) { try { fs.writeFileSync(API_CACHE, JSON.stringify(o)); } catch (_) { } }
 
-async function maybeFetch() {
+async function maybeFetch(force) {
   const now = Date.now();
-  if (fetching || now < cooldownUntil || now - lastFetch < API_MIN_INTERVAL) return;
+  if (fetching) return;
+  if (!force && (now < cooldownUntil || now - lastFetch < API_MIN_INTERVAL)) return;
   const iv = Math.max(30, Number(cfg().get('apiIntervalSeconds')) || 180) * 1000;
   const disk = readJson(API_CACHE);
-  if (disk && disk.ts && now - disk.ts < iv) {
+  if (!force && disk && disk.ts && now - disk.ts < iv) {
     apiSnap = { five: disk.five, seven: disk.seven, ts: disk.ts };
     apiStatus = { state: 'ok', code: 200, msg: '' };
     return;
   }
-  if (disk && disk.fetchingUntil && disk.fetchingUntil > now) {
+  if (!force && disk && disk.fetchingUntil && disk.fetchingUntil > now) {
     if (disk.ts) apiSnap = { five: disk.five, seven: disk.seven, ts: disk.ts };
     return;
   }
@@ -125,7 +126,7 @@ async function maybeFetch() {
     const tok = await getToken();
     if (!tok) { apiStatus = { state: 'nocreds', code: 0, msg: CRED }; render(); return; }
     const r = await callUsage(tok);
-    if (r.status === 429) { failStreak++; const back = Math.min(600000, 60000 * Math.pow(2, failStreak - 1)); cooldownUntil = Date.now() + back; apiStatus = { state: 'cooldown', code: 429, msg: 'retry ' + Math.round(back / 1000) + 's' }; render(); return; }
+    if (r.status === 429) { failStreak++; const back = Math.min(600000, 60000 * Math.pow(2, failStreak - 1)) + Math.floor(Math.random() * failStreak * 5000); cooldownUntil = Date.now() + back; apiStatus = { state: 'cooldown', code: 429, msg: 'retry ' + Math.round(back / 1000) + 's' }; render(); return; }
     if (r.status !== 200) { apiStatus = { state: 'http', code: r.status, msg: (r.body || '').slice(0, 120) }; render(); return; }
     const d = JSON.parse(r.body);
     const mk = function (x) { return x ? { pct: Math.round(x.utilization), reset: fmtDur(x.resets_at) } : null; };
@@ -166,17 +167,24 @@ function drawLine(lbl, barItem, valItem, label, data, w, stale) {
   seg(valItem, (data.pct + '% ' + (data.reset || '')).replace(/\s+$/, ''), undefined);
 }
 
-function setStatus(src) {
+function setStatus(src, nextSecs) {
   let icon = '$(sync)', color, tip = 'API: initialisation';
   if (apiStatus.state === 'ok') { icon = '$(check)'; color = '#57c85a'; tip = 'API OK'; }
-  else if (apiStatus.state === 'cooldown') { icon = '$(clock)'; color = '#e59b45'; tip = 'API 429 - cooldown 60s'; }
-  else if (apiStatus.state === 'nocreds') { icon = '$(warning)'; color = '#e59b45'; tip = 'Pas de credentials Claude: ' + apiStatus.msg; }
-  else if (apiStatus.state === 'http') { icon = '$(error)'; color = '#f14c4c'; tip = 'API HTTP ' + apiStatus.code + ' ' + apiStatus.msg; }
+  else if (apiStatus.state === 'cooldown') { icon = '$(clock)'; color = '#e59b45'; tip = 'API 429 (limite atteinte)'; }
+  else if (apiStatus.state === 'nocreds') { icon = '$(warning)'; color = '#e59b45'; tip = 'Pas de credentials Claude'; }
+  else if (apiStatus.state === 'http') { icon = '$(error)'; color = '#f14c4c'; tip = 'API HTTP ' + apiStatus.code; }
   else if (apiStatus.state === 'err') { icon = '$(error)'; color = '#f14c4c'; tip = 'API erreur: ' + apiStatus.msg; }
-  const srcLabel = src === 'api' ? 'affichage: API' : (src === 'cache' ? 'affichage: cache CLI' : 'aucune source');
+  const srcLabel = src === 'api' ? 'source: API' : (src === 'cache' ? 'source: cache CLI' : 'aucune source');
+  const md = new vscode.MarkdownString(undefined, true);
+  md.isTrusted = true;
+  md.appendMarkdown('**' + tip + '**\n\n');
+  md.appendMarkdown(srcLabel + '\n\n');
+  md.appendMarkdown('Prochaine actualisation dans ~' + nextSecs + 's\n\n');
+  md.appendMarkdown('[$(sync) Forcer l\'actualisation](command:claudeRate.refresh)');
   it.st.text = icon;
   it.st.color = color;
-  it.st.tooltip = tip + ' | ' + srcLabel;
+  it.st.tooltip = md;
+  it.st.command = 'claudeRate.refresh';
   it.st.show();
 }
 
@@ -184,10 +192,11 @@ function render() {
   const w = Math.max(4, Math.min(20, Number(cfg().get('barWidth')) || 8));
   const staleMs = Math.max(10, Number(cfg().get('staleSeconds')) || 300) * 1000;
 
+  const iv = Math.max(30, Number(cfg().get('apiIntervalSeconds')) || 180) * 1000;
+  const focused = !vscode.window.state || vscode.window.state.focused;
+  const wanted = (focused ? iv : iv * 3) + JITTER;
+
   if (cfg().get('apiFallback') !== false) {
-    const iv = Math.max(30, Number(cfg().get('apiIntervalSeconds')) || 180) * 1000;
-    const focused = !vscode.window.state || vscode.window.state.focused;
-    const wanted = focused ? iv : iv * 3;
     if (!apiSnap || Date.now() - apiSnap.ts > wanted) maybeFetch();
   }
 
@@ -196,7 +205,12 @@ function render() {
   if (!snap) { snap = csSnapshot(); src = snap ? 'cache' : 'none'; }
   const stale = !snap || (Date.now() - snap.ts > staleMs);
 
-  setStatus(src);
+  let next = Date.now();
+  if (Date.now() < cooldownUntil) next = cooldownUntil;
+  else if (apiSnap) next = apiSnap.ts + wanted;
+  const nextSecs = Math.max(0, Math.round((next - Date.now()) / 1000));
+
+  setStatus(src, nextSecs);
 
   const five = snap && snap.five;
   const seven = snap && snap.seven;
@@ -217,7 +231,8 @@ function activate(context) {
   it.st = mk(107);
   it.l5 = mk(106); it.b5 = mk(105); it.v5 = mk(104);
   it.l7 = mk(103); it.b7 = mk(102); it.v7 = mk(101);
-  context.subscriptions.push(vscode.commands.registerCommand('claudeRate.refresh', function () { lastFetch = 0; maybeFetch(); render(); }));
+  JITTER = Math.floor(Math.random() * 25000);
+  context.subscriptions.push(vscode.commands.registerCommand('claudeRate.refresh', function () { cooldownUntil = 0; lastFetch = 0; failStreak = 0; maybeFetch(true); render(); }));
   context.subscriptions.push(vscode.workspace.onDidChangeConfiguration(function (e) {
     if (e.affectsConfiguration('claudeRate')) { scheduled(); render(); }
   }));
