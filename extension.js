@@ -108,8 +108,9 @@ function writeApiCache(o) { try { fs.writeFileSync(API_CACHE, JSON.stringify(o))
 async function maybeFetch() {
   const now = Date.now();
   if (fetching || now < cooldownUntil || now - lastFetch < API_MIN_INTERVAL) return;
+  const iv = Math.max(30, Number(cfg().get('apiIntervalSeconds')) || 180) * 1000;
   const disk = readJson(API_CACHE);
-  if (disk && disk.ts && now - disk.ts < 55000) {
+  if (disk && disk.ts && now - disk.ts < iv) {
     apiSnap = { five: disk.five, seven: disk.seven, ts: disk.ts };
     apiStatus = { state: 'ok', code: 200, msg: '' };
     return;
@@ -184,8 +185,9 @@ function render() {
   const staleMs = Math.max(10, Number(cfg().get('staleSeconds')) || 300) * 1000;
 
   if (cfg().get('apiFallback') !== false) {
+    const iv = Math.max(30, Number(cfg().get('apiIntervalSeconds')) || 180) * 1000;
     const focused = !vscode.window.state || vscode.window.state.focused;
-    const wanted = focused ? 60000 : 300000;
+    const wanted = focused ? iv : iv * 3;
     if (!apiSnap || Date.now() - apiSnap.ts > wanted) maybeFetch();
   }
 
