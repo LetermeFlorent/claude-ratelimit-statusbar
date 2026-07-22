@@ -2,7 +2,7 @@
   "name": "claude-ratelimit-statusbar",
   "displayName": "Claude Rate Limit Status Bar",
   "description": "Affiche les limites d'usage Claude (fenetres 5h et 7 jours) avec une vraie barre de progression coloree dans la status bar. Source API /usage fiable + repli cache CLI.",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "publisher": "letermeflorent",
   "license": "MIT",
   "icon": "icon.png",
@@ -33,6 +33,7 @@
       "title": "Claude Rate Limit",
       "properties": {
         "claudeRate.refreshSeconds": { "type": "number", "default": 5, "description": "Intervalle de rafraichissement de l'affichage (secondes)." },
+        "claudeRate.apiIntervalSeconds": { "type": "number", "default": 180, "description": "Intervalle minimum entre deux appels API usage (secondes). Plus grand = moins de risque de 429." },
         "claudeRate.staleSeconds": { "type": "number", "default": 300, "description": "Age au-dela duquel les donnees sont grisees (secondes)." },
         "claudeRate.barWidth": { "type": "number", "default": 8, "description": "Largeur de la barre (cellules)." },
         "claudeRate.apiFallback": { "type": "boolean", "default": true, "description": "Interroger l'API /usage (>=1/min max) comme source fiable ; repli sur le cache CLI si desactive." },
